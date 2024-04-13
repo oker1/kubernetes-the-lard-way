@@ -1,0 +1,41 @@
+- name: Setup kubernetes servers
+  hosts: servers
+  become: yes
+  vars:
+    etcd_dir: /opt/etcd
+
+  tasks:
+  - name: Create a directory if it does not exist
+    ansible.builtin.file:
+      path: "{{ etcd_dir }}"
+      state: directory
+      mode: '0755'
+
+  - name: Extract etcd
+    ansible.builtin.unarchive:
+      src: https://github.com/etcd-io/etcd/releases/download/v3.4.27/etcd-v3.4.27-linux-amd64.tar.gz
+      dest: "{{ etcd_dir }}"
+      remote_src: yes
+      extra_opts: ['--strip-components=1']
+
+  - name: Template etcd unit
+    ansible.builtin.template:
+      src: template/etcd-unit.j2
+      dest: /etc/systemd/system/etcd.service
+      mode: '0644'
+    notify: Restart etcd
+
+  - name: Reload systemd
+    systemd:
+      daemon_reload: yes
+
+  - name: Start etcd
+    ansible.builtin.systemd_service:
+      state: started
+      name: etcd
+
+  handlers:
+  - name: Reload etcd
+    service:
+      name: etcd
+      state: restarted
