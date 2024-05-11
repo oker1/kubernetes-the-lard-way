@@ -3,11 +3,19 @@
   become: yes
   vars:
     etcd_dir: /opt/etcd
+    etcd_data_dir: /var/lib/etcd
+    apiserver_data_dir: /var/lib/kubernetes
 
   tasks:
-  - name: Create a directory if it does not exist
+  - name: Create etcd dir
     ansible.builtin.file:
       path: "{{ etcd_dir }}"
+      state: directory
+      mode: '0755'
+
+  - name: Create etcd data dir
+    ansible.builtin.file:
+      path: "{{ etcd_data_dir }}"
       state: directory
       mode: '0755'
 
@@ -17,6 +25,7 @@
       dest: "{{ etcd_dir }}"
       remote_src: yes
       extra_opts: ['--strip-components=1']
+    notify: Restart etcd
 
   - name: Template etcd unit
     ansible.builtin.template:
@@ -34,8 +43,82 @@
       state: started
       name: etcd
 
+  - name: Create apiserver data dir
+    ansible.builtin.file:
+      path: "{{ apiserver_data_dir }}"
+      state: directory
+      mode: '0755'
+
+  - name: Download apiserver
+    ansible.builtin.get_url:
+      url: https://storage.googleapis.com/kubernetes-release/release/v1.28.3/bin/linux/amd64/kube-apiserver
+      dest: /usr/local/bin/kube-apiserver
+      mode: '0755'
+    notify: Restart kube-apiserver
+
+  - name: Template apiserver unit
+    ansible.builtin.template:
+      src: template/kube-apiserver-unit.j2
+      dest: /etc/systemd/system/kube-apiserver.service
+      mode: '0644'
+    notify: Restart kube-apiserver
+
+  - name: Reload systemd
+    systemd:
+      daemon_reload: yes
+
+  - name: Copy enc config
+    ansible.builtin.copy:
+      src: files/encryption_config.yaml
+      dest: "{{ apiserver_data_dir }}/encryption-config.yaml"
+      mode: '0600'
+
+  - name: Copy service-accounts key
+    ansible.builtin.copy:
+      src: certs/service-accounts.key
+      dest: "{{ apiserver_data_dir }}/service-accounts.key"
+      mode: '0600'
+    notify: Restart kube-apiserver
+
+  - name: Copy service-accounts crt
+    ansible.builtin.copy:
+      src: certs/service-accounts.crt
+      dest: "{{ apiserver_data_dir }}/service-accounts.crt"
+      mode: '0600'
+    notify: Restart kube-apiserver
+
+  - name: Copy kube-api-server key
+    ansible.builtin.copy:
+      src: certs/kube-api-server.key
+      dest: "{{ apiserver_data_dir }}/kube-api-server.key"
+      mode: '0600'
+    notify: Restart kube-apiserver
+
+  - name: Copy kube-api-server crt
+    ansible.builtin.copy:
+      src: certs/kube-api-server.crt
+      dest: "{{ apiserver_data_dir }}/kube-api-server.crt"
+      mode: '0600'
+    notify: Restart kube-apiserver
+
+  - name: Copy ca crt
+    ansible.builtin.copy:
+      src: certs/ca.crt
+      dest: "{{ apiserver_data_dir }}/ca.crt"
+      mode: '0600'
+    notify: Restart kube-apiserver
+
+  - name: Start apiserver
+    ansible.builtin.systemd_service:
+      state: started
+      name: etcd
+
   handlers:
-  - name: Reload etcd
+  - name: Restart etcd
     service:
       name: etcd
+      state: restarted
+  - name: Restart kube-apiserver
+    service:
+      name: kube-apiserver
       state: restarted

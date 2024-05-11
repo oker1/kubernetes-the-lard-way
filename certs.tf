@@ -21,6 +21,16 @@ resource "tls_self_signed_cert" "ca" {
   ]
 }
 
+resource "local_file" "ca_pk" {
+  filename = "${path.module}/ansible/certs/ca.key"
+  content = tls_private_key.ca.private_key_pem
+}
+
+resource "local_file" "ca_crt" {
+  filename = "${path.module}/ansible//certs/ca.crt"
+  content = tls_self_signed_cert.ca.cert_pem
+}
+
 locals {
     certs = toset([
         "admin",
@@ -48,7 +58,7 @@ resource "tls_cert_request" "cr" {
   }
 }
 
-resource "tls_locally_signed_cert" "example" {
+resource "tls_locally_signed_cert" "cert" {
   for_each = local.certs
   cert_request_pem   = tls_cert_request.cr[each.value].cert_request_pem
   ca_private_key_pem = tls_private_key.ca.private_key_pem
@@ -62,4 +72,16 @@ resource "tls_locally_signed_cert" "example" {
     "digital_signature",
     "client_auth",
   ]
+}
+
+resource "local_file" "pk" {
+  for_each = local.certs
+  filename = "${path.module}/ansible//certs/${each.value}.key"
+  content = tls_private_key.pk[each.value].private_key_pem
+}
+
+resource "local_file" "crt" {
+  for_each = local.certs
+  filename = "${path.module}/ansible//certs/${each.value}.crt"
+  content = tls_locally_signed_cert.cert[each.value].cert_pem
 }

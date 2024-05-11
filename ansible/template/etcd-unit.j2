@@ -13,7 +13,7 @@ ExecStart={{ etcd_dir }}/etcd \
   --initial-cluster-token etcd-cluster-0 \
   --initial-cluster controller=http://127.0.0.1:2380 \
   --initial-cluster-state new \
-  --data-dir=/var/lib/etcd
+  --data-dir={{ etcd_data_dir }}
 Restart=on-failure
 RestartSec=5
 
