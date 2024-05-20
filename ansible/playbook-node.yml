@@ -1,9 +1,223 @@
 - name: Setup kubernetes nodes
   hosts: nodes
   become: yes
+  vars:
+
 
   tasks:
-  - name: Ensure curl
+  - name: Set hostname
+    ansible.builtin.hostname:
+      name: "{{ inventory_hostname }}"
+
+  - name: Check fqdn"
+    ansible.builtin.command: grep -F "{{ inventory_hostname }}.kubernetes.local" /etc/hosts
+    register: contains_fqdn
+    check_mode: no
+    ignore_errors: yes
+    changed_when: no
+
+  - name: Set fqdn
+    ansible.builtin.command: "sed -i 's/^127.0.1.1.*/127.0.1.1\t{{ inventory_hostname }}.kubernetes.local {{ inventory_hostname }}/' /etc/hosts"
+    when: contains_fqdn.rc == 1
+
+  - name: Install network packages
     ansible.builtin.apt:
-      name: curl
+      name:
+      - socat
+      - conntrack
+      - ipset
       state: latest
+
+  - name: disable swap
+    command: swapoff -a
+
+  - name: remove swap
+    ansible.builtin.mount:
+      src: /swap.img
+      path: none
+      fstype: swap
+      state: absent
+
+  - name: Create cni dirs
+    ansible.builtin.file:
+      path: "{{ item }}"
+      state: directory
+      mode: '0755'
+    loop:
+      - /etc/cni/net.d
+      - /opt/cni/bin
+
+  - name: Template cni bridge conf
+    ansible.builtin.template:
+      src: template/bridge-conf.j2
+      dest: /etc/cni/net.d/10-bridge.conf
+      mode: '0644'
+    notify: Restart containerd
+
+  - name: Template cni loopback conf
+    ansible.builtin.template:
+      src: template/loopback-conf.j2
+      dest: /etc/cni/net.d/99-loopback.conf
+      mode: '0644'
+    notify: Restart containerd
+
+  - name: Extract cni
+    ansible.builtin.unarchive:
+      src: https://github.com/containernetworking/plugins/releases/download/v1.3.0/cni-plugins-linux-amd64-v1.3.0.tgz
+      dest: "/opt/cni/bin"
+      remote_src: yes
+    notify: Restart containerd
+
+  - name: Create containerd dirs
+    ansible.builtin.file:
+      path: "{{ item }}"
+      state: directory
+      mode: '0755'
+    loop:
+      - /opt/containerd
+      - /etc/containerd
+
+  - name: Extract containerd
+    ansible.builtin.unarchive:
+      src: https://github.com/containerd/containerd/releases/download/v1.7.8/containerd-1.7.8-linux-amd64.tar.gz
+      dest: "/opt/containerd"
+      remote_src: yes
+
+  - name: Create containerd symlink in /bin
+    ansible.builtin.file:
+      src: /opt/containerd/bin/containerd
+      dest: /bin/containerd
+      state: link
+
+  - name: Template containerd conf
+    ansible.builtin.template:
+      src: template/containerd-conf.j2
+      dest: /etc/containerd/config.toml
+      mode: '0644'
+    notify: Restart containerd
+
+  - name: Template containerd unit
+    ansible.builtin.template:
+      src: template/containerd-unit.j2
+      dest: /etc/systemd/system/containerd.service
+      mode: '0644'
+    notify: Restart containerd
+
+  - name: Reload systemd
+    systemd:
+      daemon_reload: yes
+
+  - name: Create kubelet dir
+    ansible.builtin.file:
+      path: "/var/lib/kubelet"
+      state: directory
+      mode: '0755'
+
+  - name: Download kubelet
+    ansible.builtin.get_url:
+      url: https://storage.googleapis.com/kubernetes-release/release/v1.28.3/bin/linux/amd64/kubelet
+      dest: /usr/local/bin/kubelet
+      mode: '0755'
+
+  - name: Template kubelet unit
+    ansible.builtin.template:
+      src: template/kubelet-unit.j2
+      dest: /etc/systemd/system/kubelet.service
+      mode: '0644'
+    notify: Restart kubelet
+
+  - name: Template kubelet config
+    ansible.builtin.template:
+      src: template/kubelet-config.j2
+      dest: /var/lib/kubelet/kubelet-config.yaml
+      mode: '0644'
+    notify: Restart kubelet
+
+  - name: Copy kubelet keys/ca
+    ansible.builtin.copy:
+      src: certs/{{ item }}
+      dest: "/var/lib/kubelet/{{ item }}"
+      mode: '0600'
+    notify: Restart kubelet
+    loop:
+      - ca.crt
+      - "{{ inventory_hostname }}.key"
+      - "{{ inventory_hostname }}.crt"
+
+  - name: Template kubelet kubeconfig
+    ansible.builtin.template:
+      src: template/kubeconfig.j2
+      dest: /var/lib/kubelet/kubeconfig
+      mode: '0644'
+    vars:
+      user: "system:node:{{ inventory_hostname }}"
+      ca_crt: "{{ lookup('ansible.builtin.file', 'certs/ca.crt') }}"
+      client_crt: "{{ lookup('ansible.builtin.file', 'certs/' + inventory_hostname + '.crt') }}"
+      client_key: "{{ lookup('ansible.builtin.file', 'certs/' + inventory_hostname + '.key') }}"
+    notify: Restart kubelet
+
+  - name: Reload systemd
+    systemd:
+      daemon_reload: yes
+
+  - name: Create kube-proxy dir
+    ansible.builtin.file:
+      path: "/var/lib/kube-proxy"
+      state: directory
+      mode: '0755'
+
+  - name: Download kube-proxy
+    ansible.builtin.get_url:
+      url: https://storage.googleapis.com/kubernetes-release/release/v1.28.3/bin/linux/amd64/kube-proxy
+      dest: /usr/local/bin/kube-proxy
+      mode: '0755'
+
+  - name: Template kube-proxy unit
+    ansible.builtin.template:
+      src: template/kube-proxy-unit.j2
+      dest: /etc/systemd/system/kube-proxy.service
+      mode: '0644'
+    notify: Restart kube-proxy
+
+  - name: Template kube-proxy config
+    ansible.builtin.template:
+      src: template/kube-proxy-config.j2
+      dest: /var/lib/kube-proxy/kube-proxy-config.yaml
+      mode: '0644'
+    notify: Restart kube-proxy
+
+  - name: Template kube-proxy kubeconfig
+    ansible.builtin.template:
+      src: template/kubeconfig.j2
+      dest: /var/lib/kube-proxy/kubeconfig
+      mode: '0644'
+    vars:
+      user: "system:kube-proxy"
+      ca_crt: "{{ lookup('ansible.builtin.file', 'certs/ca.crt') }}"
+      client_crt: "{{ lookup('ansible.builtin.file', 'certs/kube-proxy.crt') }}"
+      client_key: "{{ lookup('ansible.builtin.file', 'certs/kube-proxy.key') }}"
+    notify: Restart kube-proxy
+
+  - name: Reload systemd
+    systemd:
+      daemon_reload: yes
+
+
+  handlers:
+  - name: Restart containerd
+    service:
+      name: containerd
+      state: restarted
+
+  - name: Restart kubelet
+    service:
+      name: kubelet
+      state: restarted
+
+  - name: Restart kube-proxy
+    service:
+      name: kube-proxy
+      state: restarted
+
+#  /var/lib/kubernetes \
+#  /var/run/kubernetes

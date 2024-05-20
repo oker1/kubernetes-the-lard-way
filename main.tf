@@ -7,7 +7,7 @@ terraform {
     local = {
       source = "hashicorp/local"
       version = "2.5.1"
-    }  
+    }
     tls = {
       source = "hashicorp/tls"
       version = "4.0.5"
@@ -43,7 +43,7 @@ resource "virtualbox_vm" "server" {
   }
 }
 
-resource "virtualbox_vm" "node" { 
+resource "virtualbox_vm" "node" {
   count     = var.node_count
   name      = format("node-%01d", count.index)
   image     = "virtualbox.box"
@@ -58,7 +58,12 @@ resource "virtualbox_vm" "node" {
 
 locals {
   server_ip = virtualbox_vm.server.network_adapter.0.ipv4_address
-  node_host_ips = { for k, v in virtualbox_vm.node: v.name => { ansible_host = v.network_adapter.0.ipv4_address } }
+  node_host_ips = { for k, v in virtualbox_vm.node: v.name =>
+    {
+      ansible_host = v.network_adapter.0.ipv4_address
+      pod_subnet = "10.200.${k}.0/24"
+    }
+  }
 }
 
 output "server_ip" {

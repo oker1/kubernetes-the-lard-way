@@ -7,6 +7,21 @@
     apiserver_data_dir: /var/lib/kubernetes
 
   tasks:
+  - name: Set hostname
+    ansible.builtin.hostname:
+      name: "{{ inventory_hostname }}"
+
+  - name: Check fqdn"
+    ansible.builtin.command: grep -F "{{ inventory_hostname }}.kubernetes.local" /etc/hosts
+    register: contains_fqdn
+    check_mode: no
+    ignore_errors: yes
+    changed_when: no
+
+  - name: Set fqdn
+    ansible.builtin.command: "sed -i 's/^127.0.1.1.*/127.0.1.1\t{{ inventory_hostname }}.kubernetes.local {{ inventory_hostname }}/' /etc/hosts"
+    when: contains_fqdn.rc == 1
+
   - name: Create etcd dir
     ansible.builtin.file:
       path: "{{ etcd_dir }}"

@@ -32,14 +32,16 @@ resource "local_file" "ca_crt" {
 }
 
 locals {
-    certs = toset([
+    node_cert_names = [for i in range(var.node_count) : "node-${i}"]
+    oneof_cert_names = [
         "admin",
         "kube-proxy",
         "kube-scheduler",
         "kube-controller-manager",
         "kube-api-server",
         "service-accounts",
-    ])
+    ]
+    certs = toset(concat(local.oneof_cert_names, local.node_cert_names))
 }
 
 resource "tls_private_key" "pk" {
@@ -76,12 +78,12 @@ resource "tls_locally_signed_cert" "cert" {
 
 resource "local_file" "pk" {
   for_each = local.certs
-  filename = "${path.module}/ansible//certs/${each.value}.key"
+  filename = "${path.module}/ansible/certs/${each.value}.key"
   content = tls_private_key.pk[each.value].private_key_pem
 }
 
 resource "local_file" "crt" {
   for_each = local.certs
-  filename = "${path.module}/ansible//certs/${each.value}.crt"
+  filename = "${path.module}/ansible/certs/${each.value}.crt"
   content = tls_locally_signed_cert.cert[each.value].cert_pem
 }
