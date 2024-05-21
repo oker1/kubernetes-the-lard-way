@@ -2,3 +2,4 @@
 *.box
 *.tfstate*
 *.terraform*
+run_playbook.sh

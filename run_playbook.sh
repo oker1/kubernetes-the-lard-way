@@ -1,1 +1,0 @@
-ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -u vagrant --private-key ./vagrant-key -i './ansible/hosts.yaml' ansible/playbook-cluster.yml
