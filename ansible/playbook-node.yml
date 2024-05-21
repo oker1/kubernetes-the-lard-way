@@ -1,7 +1,6 @@
 - name: Setup kubernetes nodes
   hosts: nodes
   become: yes
-  vars:
 
 
   tasks:
@@ -9,16 +8,11 @@
     ansible.builtin.hostname:
       name: "{{ inventory_hostname }}"
 
-  - name: Check fqdn"
-    ansible.builtin.command: grep -F "{{ inventory_hostname }}.kubernetes.local" /etc/hosts
-    register: contains_fqdn
-    check_mode: no
-    ignore_errors: yes
-    changed_when: no
-
-  - name: Set fqdn
-    ansible.builtin.command: "sed -i 's/^127.0.1.1.*/127.0.1.1\t{{ inventory_hostname }}.kubernetes.local {{ inventory_hostname }}/' /etc/hosts"
-    when: contains_fqdn.rc == 1
+  - name: Template etc hosts
+    ansible.builtin.template:
+      src: template/hosts.j2
+      dest: /etc/hosts
+      mode: '0644'
 
   - name: Install network packages
     ansible.builtin.apt:
@@ -42,7 +36,7 @@
     ansible.builtin.file:
       path: "{{ item }}"
       state: directory
-      mode: '0755'
+      mode: '0775'
     loop:
       - /etc/cni/net.d
       - /opt/cni/bin

@@ -75,7 +75,7 @@ output "node_ips" {
 }
 
 resource "local_file" "ansible-script" {
-  content = "ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -u ${var.ssh_user} --private-key ${var.ssh_key_file} -i '${local_file.hosts.filename}' ansible/playbook-*.yml"
+  content = "ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -u ${var.ssh_user} --private-key ${var.ssh_key_file} -i '${local_file.hosts.filename}' ansible/playbook-cluster.yml"
   filename = "${path.module}/run_playbook.sh"
 }
 

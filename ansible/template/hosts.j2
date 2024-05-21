@@ -1,0 +1,15 @@
+127.0.0.1 localhost
+127.0.1.1	{{ inventory_hostname }}.kubernetes.local {{ inventory_hostname }}
+
+# The following lines are desirable for IPv6 capable hosts
+::1     ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+
+{% for host in groups.all %}
+{% if 'ansible_eth0' in hostvars[host] and host != inventory_hostname %}
+{{ hostvars[host]['ansible_eth0']['ipv4']['address'] }}  {{ host }} {{ host }}.kubernetes.local
+{% endif %}
+{% endfor %}

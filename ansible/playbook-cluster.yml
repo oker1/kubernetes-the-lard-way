@@ -1,0 +1,15 @@
+- name: Hostfile generation
+  hosts: all
+  become: true
+
+  pre_tasks:
+    - name: Gather facts from ALL hosts
+      setup:
+      delegate_to: "{{ item }}"
+      delegate_facts: True
+      with_items: "{{ groups['all'] }}"
+
+- name: node
+  ansible.builtin.import_playbook: playbook-node.yml
+- name: server
+  ansible.builtin.import_playbook: playbook-server.yml

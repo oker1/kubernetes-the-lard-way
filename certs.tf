@@ -32,16 +32,27 @@ resource "local_file" "ca_crt" {
 }
 
 locals {
-    node_cert_names = [for i in range(var.node_count) : "node-${i}"]
-    oneof_cert_names = [
-        "admin",
-        "kube-proxy",
-        "kube-scheduler",
-        "kube-controller-manager",
-        "kube-api-server",
-        "service-accounts",
-    ]
-    certs = toset(concat(local.oneof_cert_names, local.node_cert_names))
+    node_cert_names = { for i in range(var.node_count) : "node-${i}" => { "CN" = "system:node:node-${i}", "dns_names" = [] } }
+    oneof_cert_names = {
+        "admin" = { "CN" = "admin", "dns_names" = [] },
+        "kube-proxy" = { "CN" = "kube-proxy", "dns_names" = [] },
+        "kube-scheduler" = { "CN" = "kube-scheduler", "dns_names" = [] },
+        "kube-controller-manager" = { "CN" = "kube-controller-manager", "dns_names" = [] },
+        "kube-api-server" = {
+          "CN" = "kubernetes",
+          "dns_names" = [
+            "kubernetes",
+            "kubernetes.default",
+            "kubernetes.default.svc",
+            "kubernetes.default.svc.cluster",
+            "kubernetes.svc.cluster.local",
+            "server.kubernetes.local",
+            "api-server.kubernetes.local",
+          ]
+        }
+        "service-accounts" = { "CN" = "service-accounts", "dns_names" = [] },
+    }
+    certs = merge(local.oneof_cert_names, local.node_cert_names)
 }
 
 resource "tls_private_key" "pk" {
@@ -52,17 +63,19 @@ resource "tls_private_key" "pk" {
 
 resource "tls_cert_request" "cr" {
   for_each = local.certs
-  private_key_pem = tls_private_key.pk[each.value].private_key_pem
+  private_key_pem = tls_private_key.pk[each.key].private_key_pem
+
+  dns_names = each.value["dns_names"]
 
   subject {
-    common_name  = each.value
+    common_name  = each.value["CN"]
     organization = "Kubernetes The Lard Way Inc."
   }
 }
 
 resource "tls_locally_signed_cert" "cert" {
   for_each = local.certs
-  cert_request_pem   = tls_cert_request.cr[each.value].cert_request_pem
+  cert_request_pem   = tls_cert_request.cr[each.key].cert_request_pem
   ca_private_key_pem = tls_private_key.ca.private_key_pem
   ca_cert_pem        = tls_self_signed_cert.ca.cert_pem
   set_subject_key_id = true
@@ -73,17 +86,18 @@ resource "tls_locally_signed_cert" "cert" {
     "key_encipherment",
     "digital_signature",
     "client_auth",
+    "server_auth", # todo: only server
   ]
 }
 
 resource "local_file" "pk" {
   for_each = local.certs
-  filename = "${path.module}/ansible/certs/${each.value}.key"
-  content = tls_private_key.pk[each.value].private_key_pem
+  filename = "${path.module}/ansible/certs/${each.key}.key"
+  content = tls_private_key.pk[each.key].private_key_pem
 }
 
 resource "local_file" "crt" {
   for_each = local.certs
-  filename = "${path.module}/ansible/certs/${each.value}.crt"
-  content = tls_locally_signed_cert.cert[each.value].cert_pem
+  filename = "${path.module}/ansible/certs/${each.key}.crt"
+  content = tls_locally_signed_cert.cert[each.key].cert_pem
 }
