@@ -36,8 +36,8 @@ locals {
     oneof_cert_names = {
         "admin" = { "CN" = "admin", "O" = "system:masters" },
         "kube-proxy" = { "CN" = "kube-proxy" },
-        "kube-scheduler" = { "CN" = "kube-scheduler" },
-        "kube-controller-manager" = { "CN" = "kube-controller-manager" },
+        "kube-scheduler" = { "CN" = "system:kube-scheduler", "O" = "system:system:kube-scheduler" },
+        "kube-controller-manager" = { "CN" = "system:kube-controller-manager", "O" = "system:kube-controller-manager" },
         "kube-api-server" = {
           "CN" = "kubernetes",
           "dns_names" = [

@@ -131,6 +131,13 @@
       mode: '0600'
     notify: Restart kube-apiserver
 
+  - name: Copy ca key
+    ansible.builtin.copy:
+      src: certs/ca.key
+      dest: "{{ apiserver_data_dir }}/ca.key"
+      mode: '0600'
+    notify: Restart kube-apiserver
+
   - name: Start apiserver
     ansible.builtin.systemd_service:
       state: started
@@ -153,6 +160,91 @@
       client_crt: "{{ lookup('ansible.builtin.file', 'certs/admin.crt') }}"
       client_key: "{{ lookup('ansible.builtin.file', 'certs/admin.key') }}"
       server: https://server.kubernetes.local:6443
+
+  - name: Create etc kubernetes config dir
+    ansible.builtin.file:
+      path: "/etc/kubernetes/config"
+      state: directory
+      mode: '0755'
+
+  - name: Download kube-scheduler
+    ansible.builtin.get_url:
+      url: https://storage.googleapis.com/kubernetes-release/release/v1.28.3/bin/linux/amd64/kube-scheduler
+      dest: /usr/local/bin/kube-scheduler
+      mode: '0755'
+    notify: Restart kube-scheduler
+
+  - name: Template kube-scheduler unit
+    ansible.builtin.template:
+      src: template/kube-scheduler-unit.j2
+      dest: /etc/systemd/system/kube-scheduler.service
+      mode: '0644'
+    notify: Restart kube-scheduler
+
+  - name: Template kube-scheduler config
+    ansible.builtin.template:
+      src: template/kube-scheduler-conf.j2
+      dest: /etc/kubernetes/config/kube-scheduler.yaml
+      mode: '0644'
+    notify: Restart kube-scheduler
+
+  - name: Template kube-scheduler kubeconfig
+    ansible.builtin.template:
+      src: template/kubeconfig.j2
+      dest: /var/lib/kubernetes/kube-scheduler.kubeconfig
+      mode: '0644'
+    vars:
+      user: "system:kube-scheduler"
+      ca_crt: "{{ lookup('ansible.builtin.file', 'certs/ca.crt') }}"
+      client_crt: "{{ lookup('ansible.builtin.file', 'certs/kube-scheduler.crt') }}"
+      client_key: "{{ lookup('ansible.builtin.file', 'certs/kube-scheduler.key') }}"
+      server: https://server.kubernetes.local:6443
+    notify: Restart kube-scheduler
+
+  - name: Reload systemd
+    systemd:
+      daemon_reload: yes
+
+  - name: Start kube-scheduler
+    ansible.builtin.systemd_service:
+      state: started
+      name: kube-scheduler
+
+  - name: Download kube-controller-manager
+    ansible.builtin.get_url:
+      url: https://storage.googleapis.com/kubernetes-release/release/v1.28.3/bin/linux/amd64/kube-controller-manager
+      dest: /usr/local/bin/kube-controller-manager
+      mode: '0755'
+    notify: Restart kube-controller-manager
+
+  - name: Template kube-controller-manager unit
+    ansible.builtin.template:
+      src: template/kube-controller-manager-unit.j2
+      dest: /etc/systemd/system/kube-controller-manager.service
+      mode: '0644'
+    notify: Restart kube-controller-manager
+
+  - name: Template kube-controller-manager kubeconfig
+    ansible.builtin.template:
+      src: template/kubeconfig.j2
+      dest: /var/lib/kubernetes/kube-controller-manager.kubeconfig
+      mode: '0644'
+    vars:
+      user: "system:kube-controller-manager"
+      ca_crt: "{{ lookup('ansible.builtin.file', 'certs/ca.crt') }}"
+      client_crt: "{{ lookup('ansible.builtin.file', 'certs/kube-controller-manager.crt') }}"
+      client_key: "{{ lookup('ansible.builtin.file', 'certs/kube-controller-manager.key') }}"
+      server: https://server.kubernetes.local:6443
+    notify: Restart kube-controller-manager
+
+  - name: Reload systemd
+    systemd:
+      daemon_reload: yes
+
+  - name: Start kube-controller-manager
+    ansible.builtin.systemd_service:
+      state: started
+      name: kube-controller-manager
 
   - name: Create kubelet ClusterRole
     kubernetes.core.k8s:
@@ -203,7 +295,18 @@
     service:
       name: etcd
       state: restarted
+
   - name: Restart kube-apiserver
     service:
       name: kube-apiserver
+      state: restarted
+
+  - name: Restart kube-scheduler
+    service:
+      name: kube-scheduler
+      state: restarted
+
+  - name: Restart kube-controller-manager
+    service:
+      name: kube-controller-manager
       state: restarted
