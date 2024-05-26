@@ -32,12 +32,12 @@ resource "local_file" "ca_crt" {
 }
 
 locals {
-    node_cert_names = { for i in range(var.node_count) : "node-${i}" => { "CN" = "system:node:node-${i}", "dns_names" = [] } }
+    node_cert_names = { for i in range(var.node_count) : "node-${i}" => { "CN" = "system:node:node-${i}", "O" = "system:nodes" } }
     oneof_cert_names = {
-        "admin" = { "CN" = "admin", "dns_names" = [] },
-        "kube-proxy" = { "CN" = "kube-proxy", "dns_names" = [] },
-        "kube-scheduler" = { "CN" = "kube-scheduler", "dns_names" = [] },
-        "kube-controller-manager" = { "CN" = "kube-controller-manager", "dns_names" = [] },
+        "admin" = { "CN" = "admin", "O" = "system:masters" },
+        "kube-proxy" = { "CN" = "kube-proxy" },
+        "kube-scheduler" = { "CN" = "kube-scheduler" },
+        "kube-controller-manager" = { "CN" = "kube-controller-manager" },
         "kube-api-server" = {
           "CN" = "kubernetes",
           "dns_names" = [
@@ -50,7 +50,7 @@ locals {
             "api-server.kubernetes.local",
           ]
         }
-        "service-accounts" = { "CN" = "service-accounts", "dns_names" = [] },
+        "service-accounts" = { "CN" = "service-accounts" },
     }
     certs = merge(local.oneof_cert_names, local.node_cert_names)
 }
@@ -65,11 +65,11 @@ resource "tls_cert_request" "cr" {
   for_each = local.certs
   private_key_pem = tls_private_key.pk[each.key].private_key_pem
 
-  dns_names = each.value["dns_names"]
+  dns_names = lookup(each.value, "dns_names", [])
 
   subject {
     common_name  = each.value["CN"]
-    organization = "Kubernetes The Lard Way Inc."
+    organization = lookup(each.value, "O", "Kubernetes The Lard Way Inc.")
   }
 }
 

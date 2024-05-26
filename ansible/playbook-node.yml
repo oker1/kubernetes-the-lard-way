@@ -148,6 +148,7 @@
       ca_crt: "{{ lookup('ansible.builtin.file', 'certs/ca.crt') }}"
       client_crt: "{{ lookup('ansible.builtin.file', 'certs/' + inventory_hostname + '.crt') }}"
       client_key: "{{ lookup('ansible.builtin.file', 'certs/' + inventory_hostname + '.key') }}"
+      server: https://server.kubernetes.local:6443
     notify: Restart kubelet
 
   - name: Reload systemd
@@ -190,6 +191,7 @@
       ca_crt: "{{ lookup('ansible.builtin.file', 'certs/ca.crt') }}"
       client_crt: "{{ lookup('ansible.builtin.file', 'certs/kube-proxy.crt') }}"
       client_key: "{{ lookup('ansible.builtin.file', 'certs/kube-proxy.key') }}"
+      server: https://server.kubernetes.local:6443
     notify: Restart kube-proxy
 
   - name: Reload systemd
