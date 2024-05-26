@@ -82,7 +82,7 @@ resource "local_file" "ansible-script" {
 
 resource "local_file" "hosts" {
   content  = yamlencode({
-    nodes = { hosts =local.node_host_ips },
+    nodes = { hosts = local.node_host_ips },
     servers = { hosts = { (virtualbox_vm.server.name) = { ansible_host = local.server_ip } } }
   })
   filename = "${path.module}/ansible/hosts.yaml"

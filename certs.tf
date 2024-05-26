@@ -32,10 +32,10 @@ resource "local_file" "ca_crt" {
 }
 
 locals {
-    node_cert_names = { for i in range(var.node_count) : "node-${i}" => { "CN" = "system:node:node-${i}", "O" = "system:nodes" } }
+    node_cert_names = { for i in range(var.node_count) : "node-${i}" => { "CN" = "system:node:node-${i}", "O" = "system:nodes", dns_names = [ "node-${i}" ] } }
     oneof_cert_names = {
         "admin" = { "CN" = "admin", "O" = "system:masters" },
-        "kube-proxy" = { "CN" = "kube-proxy" },
+        "kube-proxy" = { "CN" = "system:kube-proxy", "O" = "system:node-proxier" },
         "kube-scheduler" = { "CN" = "system:kube-scheduler", "O" = "system:system:kube-scheduler" },
         "kube-controller-manager" = { "CN" = "system:kube-controller-manager", "O" = "system:kube-controller-manager" },
         "kube-api-server" = {
@@ -66,6 +66,7 @@ resource "tls_cert_request" "cr" {
   private_key_pem = tls_private_key.pk[each.key].private_key_pem
 
   dns_names = lookup(each.value, "dns_names", [])
+
 
   subject {
     common_name  = each.value["CN"]

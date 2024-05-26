@@ -220,6 +220,3 @@
     service:
       name: kube-proxy
       state: restarted
-
-#  /var/lib/kubernetes \
-#  /var/run/kubernetes
