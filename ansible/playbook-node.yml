@@ -62,6 +62,12 @@
       remote_src: yes
     notify: Restart containerd
 
+  - name: Download runc
+    ansible.builtin.get_url:
+      url: https://github.com/opencontainers/runc/releases/download/v1.1.9/runc.amd64
+      dest: /usr/local/bin/runc
+      mode: '0755'
+
   - name: Create containerd dirs
     ansible.builtin.file:
       path: "{{ item }}"
