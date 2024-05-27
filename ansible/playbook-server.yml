@@ -30,6 +30,13 @@
       dest: /etc/hosts
       mode: '0644'
 
+  - name: Template netplan conf
+    ansible.builtin.template:
+      src: template/netplan.j2
+      dest: /etc/netplan/01-netcfg.yaml
+      mode: '0644'
+    notify: Netplan apply
+
   - name: Create etcd dir
     ansible.builtin.file:
       path: "{{ etcd_dir }}"
@@ -310,3 +317,6 @@
     service:
       name: kube-controller-manager
       state: restarted
+
+  - name: Netplan apply
+    ansible.builtin.shell: netplan apply

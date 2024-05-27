@@ -1,0 +1,12 @@
+network:
+  version: 2
+  ethernets:
+    eth0:
+      dhcp4: true
+      routes:
+{% for host in groups.nodes %}
+{% if 'ansible_eth0' in hostvars[host] and host != inventory_hostname %}
+      - to: {{ hostvars[host]['pod_subnet'] }}
+        via: {{ hostvars[host]['ansible_eth0']['ipv4']['address'] }}
+{% endif %}
+{% endfor %}

@@ -32,6 +32,13 @@
       fstype: swap
       state: absent
 
+  - name: Template netplan conf
+    ansible.builtin.template:
+      src: template/netplan.j2
+      dest: /etc/netplan/01-netcfg.yaml
+      mode: '0644'
+    notify: Netplan apply
+
   - name: Create cni dirs
     ansible.builtin.file:
       path: "{{ item }}"
@@ -220,3 +227,6 @@
     service:
       name: kube-proxy
       state: restarted
+
+  - name: Netplan apply
+    ansible.builtin.shell: netplan apply
